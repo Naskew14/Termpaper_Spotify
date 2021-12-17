@@ -1,0 +1,624 @@
+---
+title: "Term Paper"
+subtitle: "Analyzing the Top Songs with Spotify Data"
+author: "Nick Askew"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+    df_print: kable
+references:
+- id: Wickham2014
+  title: Tidy Data
+  author:
+  - family: Wickham
+    given: Hadley
+  container-title: Journal of Statistical Software
+  volume: 59
+  issue: 10
+  page: 1-23
+  type: article-journal
+  issued:
+    year: 2014
+- id: Baumer2017
+  title: Modern Data Science with R
+  author:
+  - family: Baumer
+    given: Benjamin S.
+  - family: Kaplan
+    given: Daniel T.
+  - family: Horton
+    given: Nicholas J.
+  type: book
+  publisher: Chapman \& Hall/CRC Press.
+  issued:
+    year: 2017
+---
+
+```{r, include = FALSE}
+library(knitr)
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(ggthemes)
+library(dplyr)
+```
+
+## Introduction and Research Question
+
+
+> Spotify is one of the most used music streaming services around the world and with so many users, much like other highly used applications, it collects data on a multitude of aspects based on what its users are listening to. One example of this is Spotify creates top 50 playlists for individual countries based on the most popular tracks being played for a given time period (usually every few weeks). This offers a great opportunity to compare the most popular songs by country. Luckily, one can download the data through gaining access to an API key and using R's "spotifyr" package to load the data into R. When loading in the data, Spotify's API does not only provide the names of the songs, but also many other variables that are used to desrcibe the songs. The variables most important for this project are called audio features, and they are named danceability, acousticness, energy, instrumentalness, liveness, loudness, speechiness, tempo, and valence. I will explain the definition of each later in the Analysis section more thoroughly as I analyze each feature by country, but for now all that is needed to be known is that they all range on a scale of 0 to 1 besides tempo and loudness, which are in beats per minute and decibels, respectively, and being closer 1 signifies a larger magnitude of a given audio feature in a song. I will use these audio features along with other variables such as the key and mode to assess if there is a difference in music taste by English-speaking countries based on the most popular songs being played at the moment. I chose to use only English-speaking countries becasue I wanted to make sure users from the countries would be familiar with similar songs. I will also break it down even further to see whether the top 10 differentiates from the top 50 to see what really makes a song very popular in that country. Finally, I will aslo speculate what makes a song popular in general by looking at similarities across the top 50 playlists. The countries being assessed with be the U.S., UK, Canada, Philippines, and Australia. 
+
+
+## Data Collection 
+
+
+```{r}
+## Accessing library for Spotify commands 
+
+library(spotifyr)
+
+## Ids needed for access to API found on Developer page 
+Sys.setenv(SPOTIFY_CLIENT_ID = '002c6b414e9e45dd990ae5f5c6d8850e')
+Sys.setenv(SPOTIFY_CLIENT_SECRET = 'e744c204d6724d1a96093108e0da77fd')
+
+## Requesting access to API
+access_token <- get_spotify_access_token() 
+```
+
+
+> The first step is creating a developer account on Spotify's developer website. You must have a regular spotify account already to do so. After doing so, you will create a project on the developer page, and they will provide your account with a Client ID as well as a Client Secret ID. Using the two ID's along with the "spotifyr" package, you will be able to use the following commands displayed above to gain access to the API. 
+
+
+```{r}
+## Load in Playlist for each country 
+
+## U.S. 
+
+US_Top50 <- get_playlist_audio_features(playlist_uris = "37i9dQZEVXbLRQDuF5jeBp?si=369f4c62e5d84be9&nd=1")
+ 
+US_Top50$country <- "US"
+```
+
+
+Once I have access to the API, I can use the following command to load in the top 50 playlist for any country I'd like to. The playlist uri can be found on the app. I also create a country variable so that a song can easily be identified as to what playlist it belongs to. The above example shows how I did this for the U.S. Top 50 playlist. I do the same for the rest of the countries I am interested in. 
+
+
+```{r, include = FALSE}
+## Australia
+
+AUS_Top50 <- get_playlist_audio_features(playlist_uris = "37i9dQZEVXbJPcfkRz0wJ0?si=e196d236d3724419&nd=1")
+ 
+AUS_Top50$country <- "Australia"
+
+```
+
+
+```{r, include = FALSE}
+## UK
+
+UK_Top50 <- get_playlist_audio_features(playlist_uris = "37i9dQZEVXbLnolsZ8PSNw?si=c8f46ed083de43fd&nd=1")
+
+UK_Top50$country <- "UK"
+
+```
+
+
+```{r, include = FALSE}
+## Philippines
+
+PHI_Top50 <- get_playlist_audio_features(playlist_uris = "37i9dQZEVXbNBz9cRCSFkY?si=df624df268704401")
+
+PHI_Top50$country <- "Philippines"
+
+```
+
+
+```{r, include = FALSE}
+## Canada
+
+CAN_Top50 <- get_playlist_audio_features(playlist_uris = "37i9dQZEVXbKj23U1GF4IR?si=aadb1f72f46b4b30")
+
+CAN_Top50$country <- "Canada"
+
+```
+
+
+
+## Preprocessing
+
+
+```{r}
+## Subset the top 10 songs from each country to prepare for a separate dataframe
+
+US_Top10 <- US_Top50[1:10,]
+
+UK_Top10 <- UK_Top50[1:10,]
+
+CAN_Top10 <- CAN_Top50[1:10,]
+
+PHI_Top10 <- PHI_Top50[1:10,]
+
+AUS_Top10 <- AUS_Top50[1:10,]
+```
+
+
+> The next step is to make the data tidy where I have two separate tibbles with only the variables I am interested in - One containing the Top 50 from each countrie and one containing the top 10 from each country. The above code chuck shows the first steps where I subset songs 1 through 10 for each country. 
+
+
+```{r}
+## Create tibble: Top 50
+
+Top50_Songs <- rbind(US_Top50, AUS_Top50) %>%
+              rbind(CAN_Top50)%>%
+                rbind(UK_Top50)%>%
+                  rbind(PHI_Top50)
+```
+
+
+I use the rbind command here to merge all of the top 50 songs into one tibble. I do the same steps for the top 10.
+
+
+```{r, include = FALSE}
+## Top 10 
+
+Top10_Songs <- rbind(US_Top10, AUS_Top10) %>%
+  rbind(CAN_Top10)%>%
+  rbind(UK_Top10)%>%
+  rbind(PHI_Top10)
+```
+
+
+```{r}
+# Select variables that will be used for analysis: Top 50
+
+Top50_Songs <- Top50_Songs %>%
+                select(danceability, energy, key, loudness, mode, speechiness, 
+                       acousticness, instrumentalness, valence, tempo, liveness, 
+                       track.name, time_signature, track.duration_ms, track.popularity, 
+                       key_name, mode_name, key_mode, country, track.explicit)
+
+```
+
+
+I select only the variables I am interested in and I do the same for the top 10. I now have
+
+
+```{r, include = FALSE}
+## Top 10
+
+Top10_Songs <- Top10_Songs %>%
+  select(danceability, energy, key, loudness, mode, speechiness, 
+         acousticness, instrumentalness, valence, tempo, liveness, 
+         track.name, time_signature, track.duration_ms, track.popularity, 
+         key_name, mode_name, key_mode, country, track.explicit)
+```
+
+
+## Analysis
+
+
+> Now that the datasets are tidy the analysis is pretty straightforward. I will be looking at each audio feature one at a time by country through scatter and density plots to figure out means, ranges, and the overall distribution of these features in the Top 50. The goal is to be able to generalize what genre/type of music corresponds with the values seen in the distributions, and how this may differ between countries as well as how the top 10 differs from the top 50. For example, if a country has values close to 1 for danceability, energy, and loudness, I can infer that upbeat style music appeals more to that country and perhaps pop/edm may be more popular than all other genres. Furthermore, patterns that hold across all countries will give insight to what makes a song popular in general. Finally, I will also analyze the keys and modes among the playlists as well as the specific tracks that are common across all countries. 
+
+
+### Danceability
+
+
+> Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity. The closer the value is to 1, the more danceable the song is. 
+
+
+```{r, warning=FALSE}
+# Top 50 scatter w/means 
+
+mean_dance50 <- aggregate(danceability~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = danceability))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_dance50, aes(label = danceability, y = danceability + .05))+
+  theme_clean()+
+  ggtitle("Mean Danceability by Country - Top 50")
+
+```
+ 
+ 
+Each point on the scatter plot represents an individual track corresponding to the country it is lined up with on the x-axis. The points are spread out slightly with the position_jitter function to make individual points more visible. The mean value for a given country is represented by the green dot and the actual value is displayed in text above. Australia has the most danceable songs on average with a mean of .656 while the U.S. has the lowest with a value of .606.It appears that The US, UK, and Canada have the largest ranges in danceability with some very low values for some songs. There doesn't seem to be a huge difference between the countries, but the main takeaway from this is that songs that are more danceable than not are more likely to be in the top 50 for these countries.
+ 
+ 
+```{r, warning=FALSE}
+# Top 10 scatter
+
+mean_dance10 <- aggregate(danceability~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = danceability))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_dance10, aes(label = danceability))+
+  theme_clean()+
+  ggtitle("Mean Danceability by Country - Top 10")
+```
+ 
+ 
+When making the same plot using the top 10 tibble, we start to see some large variation among the countries. Australia has by far the highest mean with a value of .6972 and UK has the lowest with a value of .4972. The other countries are approximately in the middle of this range. Thus, songs that I will deem as very popular (Top 10) are likely to be very danceable in Australia while its about a 50/50 chance in the UK. A top 10 song in Australia is likely to be more upbeat than a top 10 song in the UK.
+ 
+ 
+```{r, warning=FALSE}
+# Top 10 Songs density distribution
+
+ggplot(Top10_Songs, aes(x = danceability, fill = country)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~country, ncol = 1)+
+  ggtitle("Danceability Distribution - Top 10") + 
+  theme_clean()
+```
+ 
+ 
+I will not show these density plots for each feature, but I show it here to confirm the results. Australia's distribution of the top 10 is more towards 1, while the UK has approximately an even spread throughout the x-axis. 
+ 
+
+### Energy
+
+
+> Energy also is onb a scale of 0 to 1 and represents a perceptual measure of intensity and activity. The more energetic a track is, typically the faster, louder, and noisier it is. 
+
+
+```{r, warning=FALSE}
+# Top 50 scatter
+
+mean_energy50 <- aggregate(energy~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = energy))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_energy50, aes(label = energy, y = energy + .04))+
+  theme_clean()+
+    ggtitle("Mean Energy by Country - Top 50")
+
+
+```
+
+
+Australia also has the highest average for energy with a value of .652 while Philippines has the lowest with a value of .528. The U.S. is the second lowest and very close to the Philippines, while the UK is is the second highest and nearly the same as Australia. Based on the definition, energetic tracks correlate with with more pop sounding songs as well so it makes sense for Australia to have the highest danceabilty as well as the highest energy on average. Overall, all of the averages are above the .5 mark, so again I'd say the more energetic a track is, the more likely it will be in the top 50 for these countries than a track that is not. 
+
+
+```{r, warning=FALSE}
+# Top 10 scatter
+
+mean_energy10 <- aggregate(energy~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = energy))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_energy10, aes(label = energy))+
+  theme_clean()+
+    ggtitle("Mean Energy by Country - Top 10")
+
+```
+
+When we subset the data to the top 10 songs, the Philippines has by far the lowest average with a value of .446 and Australia has by far the highest with a value of .687. One interesting thing to note here is that while UK had the lowest danceability in the top 10, the energy average in the top 10 is the second highest behind Australia. The tracks must be loud and noisy but perhaps not easy to dance to.
+
+
+```{r, include=FALSE}
+# Energy Top Distribution 
+
+ggplot(Top10_Songs, aes(x = energy, fill = country)) +
+  geom_density(alpha = 0.6) + 
+  facet_wrap(~country, ncol = 1)+
+  theme_clean()+
+  ggtitle("Musical Energy by Country")
+```
+
+
+### Valence 
+
+> Valence desrcibes the musical positiveness conveyed by a track. Tracks with high valence sound more positive (happy, cheerful, euphoric), while tracks with low valence sound more negative (sad, depressing, angry)
+
+
+```{r, warning=FALSE}
+### Top 50 scatter
+
+mean_valence50 <- aggregate(valence~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = valence))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_valence50, aes(label = valence))+
+  theme_clean()+
+  ggtitle("Mean Valence by Country - Top 50")
+```
+
+
+The UK has the happiest sounding songs on average in their top 50 with a value of .648 and Philippines has the lowest with a value of .428. Overall, happier sounding songs are more likely to be in the top 50 than sadder sounding sounds except for the Philippines. Philippines also had a low energy value meaning the songs ion their top 50 are likely to be slower and probably more acoustic/lyric driven. 
+
+
+```{r, warning=FALSE}
+## Top 10 scatter
+
+
+mean_valence10 <- aggregate(valence~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = valence))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_valence10, aes(label = valence))+
+  theme_clean()+
+    ggtitle("Mean Valence by Country - Top 10")
+```
+
+The same pattern holds in the top 10 distribution, and Philippines average drops all the way to .249. Very sad songs are very popular in the Philippines. 
+
+
+
+```{r, include = FALSE}
+ggplot(Top50_Songs, aes(x = valence, fill = country)) +
+  geom_density(alpha = 0.6) + 
+  facet_wrap(~country, ncol = 1)+
+  theme_clean()+
+  ggtitle("Musical Valence by Country")
+```
+
+
+### Speechiness 
+
+> Speechiness detects the presence of spoken words in a track. The more exclusively speech-like the recording (e.g. talk show, audio book, poetry), the closer to 1.0 the attribute value.
+
+
+```{r, warning=FALSE}
+# Top 50 scatter
+
+mean_speech50 <- aggregate(speechiness~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = speechiness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_speech50, aes(label = speechiness))+
+  theme_clean()+
+  ggtitle("Mean Speechiness by Country - Top 50")
+
+```
+
+In terms of music genre, rap would correlate to the higher speechiness ratings. Overall, average speechiness ratings are pretty low regardless of country. Each country does have some higher values meaning rap songs are most likely still in the top 50. However, I would conclude there are other genres of music that are more popular than rap in the top 50 overall. I don't show the top 10 distribution for this variable becasue the same results hold true. 
+
+
+
+
+```{r, include=FALSE}
+# Top 10 scatter
+
+mean_speech10 <- aggregate(speechiness~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = speechiness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_speech10, aes(label = speechiness))+
+  theme_clean()+
+  ggtitle("Mean Speechiness by Country - Top 10")
+```
+
+
+```{r, include=FALSE}
+ggplot(Top10_Songs, aes(x = speechiness, fill = country)) +
+  geom_density(alpha = 0.6) + 
+  facet_wrap(~country, ncol = 1)+
+  theme_clean()+
+  ggtitle("Musical speechiness by Country")
+```
+
+
+### Acousticness
+
+
+> A measure from 0.0 to 1.0 of whether the track is acoustic.
+
+
+```{r, warning=FALSE}
+# Top 50 scatter
+
+mean_acoustic50 <- aggregate(acousticness~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = acousticness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_acoustic50, aes(label = acousticness))+
+  theme_clean()+
+  ggtitle("Mean Acousticness by Country - Top 50")
+
+```
+
+Philippines also has the highest acousticness ratings. It appears there is a correlation between valence, energy and acousticness, as the Philippines is the lowest in the first two features, but not the last one stated. Acoustic songs tend to be slower and sad, and also are very lyric driven, so I would suggest listeners in Philippines are more likely to listen to songwriter style music. Australia is by far the lowest and this also confirms the correlation between valence and energy, as Australia had the highest averages in energy and valence. Again, the same pattern for the top 10 holds true so I will not show the graph. However, the average acoustic ratings for all countries are still all well below .5 meaning the previous statement that more pop driven songs are more likely to be in the top 50 holds true. 
+
+
+```{r, include=FALSE}
+
+# Top 10 scatter
+
+mean_acoustic10 <- aggregate(acousticness~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = acousticness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_acoustic10, aes(label = acousticness))+
+  theme_clean()+
+  ggtitle("Mean Acousticness by Country - Top 10")
+```
+
+
+```{r, include=FALSE}
+ggplot(Top10_Songs, aes(x = speechiness, fill = country)) +
+  geom_density(alpha = 0.6) + 
+  facet_wrap(~country, ncol = 1)+
+  theme_clean()+
+  ggtitle("Musical speechiness by Country")
+```
+
+
+### Loudness
+
+> The overall loudness of a track in decibels (dB). Loudness values are averaged across the entire track. Values typical range between -60 and 0 db.
+
+
+```{r, include=FALSE}
+mean_loud50 <- aggregate(loudness~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = loudness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_loud50, aes(label = loudness, y = loudness + .05))+
+  theme_clean()+
+  ggtitle("Mean Loudness by Country - Top 50")
+```
+
+
+```{r, include=FALSE}
+mean_loud10 <- aggregate(loudness~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = loudness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_loud10, aes(label = loudness))+
+  theme_clean()+
+  ggtitle("Mean Loudness by Country - Top 10")
+```
+
+
+```{r}
+ggplot(Top50_Songs, aes(x = loudness, fill = country)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~country, ncol = 1)+
+  ggtitle("Loudness Distribution - Top 50") + 
+  theme_clean()
+```
+
+
+I chose to show the density plot here and a similar correlation seen with valence and energy continues to hold. Australia has the most values towards the higher end and this makes sense because a track being loud is part of the definition of the other two features t5hat it is also highest in. Overall, the majority of tracks are trending towards the loud side and this also makes sense because all acousticness ratings were below .5, and acoustic songs would typically be more quiet than genres like edm, pop, and rock. 
+
+
+### Tempo
+
+
+> The overall estimated tempo of a track in beats per minute (BPM). In musical terminology, tempo is the speed or pace of a given piece and derives directly from the average beat duration.
+
+
+
+```{r, include = FALSE}
+
+mean_tempo50 <- aggregate(tempo~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = tempo))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_tempo50, aes(label = tempo, y = tempo + .05))+
+  theme_clean()+
+  ggtitle("Mean Tempo by Country - Top 50")
+
+```
+
+
+```{r, include=FALSE}
+mean_tempo10 <- aggregate(tempo~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = tempo))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_tempo10, aes(label = tempo))+
+  theme_clean()+
+  ggtitle("Mean Tempo by Country - Top 10")
+```
+
+
+```{r}
+ggplot(Top10_Songs, aes(x = tempo, fill = country)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~country, ncol = 1)+
+  ggtitle("Tempo Distribution - Top 50") + 
+  theme_clean()
+```
+
+Again, I show the density plot here of the top 50 for each country. Tempo is a variable that is actually very similar across countries. Philippines and Canada appear to have the most tracks towards the lower end relative to other countries, and again this makes sense for the Philippines the most. However, overall the mean for each country appears to sit in the 120-130 bpm range so perhaps this is an average beat speed for a popular songs. I don't show the top 10 because the same pattern is seen there as well. 
+
+
+### Instrumentalness
+
+
+> Predicts whether a track contains no vocals. The closer the instrumentalness value is to 1.0, the greater likelihood the track contains no vocal content.
+
+```{r, warning=FALSE}
+
+mean_inst50 <- aggregate(instrumentalness~country,Top50_Songs, mean)
+
+ggplot(Top50_Songs, aes(x = country, y = instrumentalness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_inst50, aes(label = instrumentalness, y = instrumentalness + .05))+
+  theme_clean()+
+  ggtitle("Mean Instrumentalness by Country - Top 50")
+```
+
+
+This feature is not very interesting to say the least. Averages for all countries are approximately zero and this is true for the top 10 as well. The biggest takeaway from this is that a track purely full of instrumentals is likely not to be that popular, at least for this given point in time. One thing to note is that Canada and the U.S. each have one song in the top 50 hovering near the .4 mark, and the Philippines has one song hovering near the .6 mark. 
+
+
+```{r, include=FALSE}
+mean_inst10 <- aggregate(instrumentalness~country,Top10_Songs, mean)
+
+ggplot(Top10_Songs, aes(x = country, y = instrumentalness))+
+  geom_point(position=position_jitter(width=0.2))+
+  stat_summary(fun="mean",colour = "green")+
+  geom_text(data = mean_inst10, aes(label = instrumentalness))+
+  theme_clean()+
+  ggtitle("Mean Instrumentalness by Country - Top 10")
+```
+
+
+```{r, include=FALSE}
+ggplot(Top10_Songs, aes(x = instrumentalness, fill = country)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~country, ncol = 1)+
+  ggtitle("Instrumentalness Distribution - Top 10") + 
+  theme_clean()
+```
+
+
+### Key and Mode
+
+
+> I will now move on to key and mode after discusiing all of the audio fetaures. Note that I did not discuss the liveness feature because none of the songs in the playlists are live songs. Key and mode look at the specific key of a song (e.g. A, B, C...) and whether the song is in minor or major. Major songs tend to sound more happy while the opposite is true for minor.
+
+
+```{r}
+
+### Key and mode bar graph
+
+ggplot(Top50_Songs, aes(x = key_name, fill = mode_name))+
+  geom_bar()+
+  facet_wrap(~country, ncol = 1)+
+  labs(x="Key", y="Number of Songs")+
+guides(fill=guide_legend(title="Mode"))+
+  theme_pander()+
+  ggtitle("Musical Key Makeup by Country")
+```
+
+
+The bar graph displayed above has a separate bar for each key and is shaded either red or blue to signify major or minor, respectively. The main two takeaways from this are that most popular songs are in the major mode and the keys of C# and D tend to be the most used in the songs. However, the Philippines does not use much D and uses A more instead. This information would be more useful to a musician that knows how to play in these keys and modes. It communicates what scales and chords are appealing to the audience, so this could potentially help an artist write a more popular song by using a major mode and a C#/D key. 
+
+
+### Common tracks 
+
+
+```{r}
+sort(table(Top10_Songs$track.name), decreasing = TRUE)%>%
+  kable()
+```
+Some songs are popular in every country. For example, we see that Easy on Me by Adele appears in the top 10 for all countries. It also is seen that the time of the year is affecting the top 10 rankings, as multiple Christmas songs are appearing in the top 10, which makes sense as the holiday is approaching. However, there are still many songs (about half) in the top 10 that are unique to a specific country implying some difference in taste. 
+
+
+## Discussion
+
+> It is hard to really assess the definition of music taste and using the Spotify API has many limitations. First of all, the top 50 playlists can only be generated from users of the app, and there are many other music streaming services that listeners can use. It would be interesting to see whether the same songs that are popular on Spotify are also popular on a streaming service like Apple Music. It was also seen that the time of year plays a role in what songs will appear in the top 50, as there are multiple Christmas songs showing up throughout the playlists and these songs may not typically have the attributes of a popular song in general. A third concern is that the some of the audio features have very subjective definitions, as there can be a little ambiguity around what makes a song have high danceability and energy for example. Despite this, becasue of correlations seen between certain features that made sense, I believe I was able to come up with a loose idea of what music taste appeals to these countries. For example, it was clear that Australia's top 50 contained the loudest, most upbeat, most danceable, and highest energy songs meaning it is highly likley that pop, edm, rap, and perhaps rock are very popular there. Philippines had the most acoustic songs as well as the saddest songs so I would say that a songwriter type genre is more likely to appeal to the Phillipines than the other countries. The rest of the countries were typically falling in the middle of the other two mentioned, but their mean values were still all above .5 for features like danceability, energy, and valence to name a few so I would make the claim that poppy music is the most likely genre to be in the top 50 regardless of country. This makes snese, as most popular radio hits you hear are upbeat, catchy, and can sometimes sound the same. The bar graph of key and mode somewhat confirms this as it shows that most popular songs are in the major mode and use one or two different keys, meaning similar chords and scales are played for these popular songs. In terms of next steps, I would like to see how music taste changes throughout the year, as maybe certain months yield different styles of music. I think it would also be interesting to look at which artists stay in the top 50 the most for a given time period, and then I could assess the genre more clearly by knowing about that artist's specific style. 
+
+
+
+
+## References
